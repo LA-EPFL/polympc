@@ -4,6 +4,7 @@
 #include <Eigen/Dense>
 #include <cmath>
 #include <limits>
+#define QP_SOLVER_USE_SPARSE
 #include "qp_solver.hpp"
 #include "bfgs.hpp"
 
@@ -73,6 +74,7 @@ public:
     };
 
     using Scalar = typename Problem::Scalar;
+    using SpMat = Eigen::SparseMatrix<Scalar>;
     using qp_t = qp_solver::QP<VAR_SIZE, NUM_CONSTR, Scalar>;
     using qp_solver_t = qp_solver::QPSolver<qp_t>;
     using settings_t = sqp_settings_t<Scalar>;
@@ -83,9 +85,9 @@ public:
     using hessian_t = Eigen::Matrix<Scalar, VAR_SIZE, VAR_SIZE>;
 
     using constr_eq_t = Eigen::Matrix<Scalar, NUM_EQ, 1>;
-    using jacobian_eq_t = Eigen::Matrix<Scalar, NUM_EQ, VAR_SIZE>;
+    using jacobian_eq_t = SpMat; // Eigen::Matrix<Scalar, NUM_EQ, VAR_SIZE>;
     using constr_ineq_t = Eigen::Matrix<Scalar, NUM_INEQ, 1>;
-    using jacobian_ineq_t = Eigen::Matrix<Scalar, NUM_INEQ, VAR_SIZE>;
+    using jacobian_ineq_t = SpMat; // Eigen::Matrix<Scalar, NUM_INEQ, VAR_SIZE>;
     using constr_box_t = var_t;
 
     // Constants
@@ -99,6 +101,13 @@ public:
 
     qp_t _qp;
     qp_solver_t _qp_solver;
+
+    hessian_t B;
+    constr_eq_t b_eq;
+    jacobian_eq_t A_eq;
+    constr_ineq_t b_ineq;
+    jacobian_ineq_t A_ineq;
+    constr_box_t lbx, ubx;
 
     settings_t _settings;
     sqp_info_t _info;
@@ -191,7 +200,7 @@ private:
         return false;
     }
 
-    void solve_qp(Problem &prob, var_t &p, dual_t &lambda)
+    void solve_qp(Problem &prob, var_t &primal_step, dual_t &dual_step)
     {
         /* QP from linearized NLP:
          * minimize     0.5 x'.P.x + q'.x
@@ -219,19 +228,11 @@ private:
             BOX_IDX = NUM_INEQ + NUM_EQ,
         };
         const Scalar UNBOUNDED = 1e20;
+        bool first_iter = _info.iter == 1 ? true : false;
 
         gradient_t& grad_f = _qp.q;
-        hessian_t& B = _qp.P;
 
         prob.cost_linearized(_x, grad_f, _cost);
-
-        // TODO: avoid stack allocation (stack overflow)
-        constr_eq_t b_eq;
-        jacobian_eq_t A_eq;
-        constr_ineq_t b_ineq;
-        jacobian_ineq_t A_ineq;
-        constr_box_t lbx, ubx;
-
         prob.constraint_linearized(_x, A_eq, b_eq, A_ineq, b_ineq, lbx, ubx);
 
         Eigen::Ref<constr_eq_t> lambda_eq = _lambda.template segment<NUM_EQ>(EQ_IDX);
@@ -240,12 +241,12 @@ private:
 
         gradient_t y = -_grad_L;
         _grad_L = grad_f +
-                  A_eq.transpose() * lambda_eq +
-                  A_ineq.transpose() * lambda_ineq +
+                  (lambda_eq * A_eq).transpose() +
+                  (lambda_ineq * A_ineq).transpose() +
                   lambda_box;
 
         // BFGS update
-        if (_info.iter == 1) {
+        if (first_iter) {
             B.setIdentity();
         } else {
             y += _grad_L; // y = grad_L_prev - grad_L
@@ -253,26 +254,30 @@ private:
             SOLVER_ASSERT(_is_posdef(B));
         }
 
+        update_P(first_iter);
+
+        update_A(first_iter);
+
         // Equality constraints
         // from        A.x + b  = 0
         // to    -b <= A.x     <= -b
         _qp.u.template segment<NUM_EQ>(EQ_IDX) = -b_eq;
         _qp.l.template segment<NUM_EQ>(EQ_IDX) = -b_eq;
-        _qp.A.template block<NUM_EQ, VAR_SIZE>(EQ_IDX, 0) = A_eq;
+        // _qp.A.template block<NUM_EQ, VAR_SIZE>(EQ_IDX, 0) = A_eq;
 
         // Inequality constraints
         // from          A.x + b <= 0
         // to    -INF <= A.x     <= -b
         _qp.u.template segment<NUM_INEQ>(INEQ_IDX) = -b_ineq;
         _qp.l.template segment<NUM_INEQ>(INEQ_IDX).setConstant(-UNBOUNDED);
-        _qp.A.template block<NUM_INEQ, VAR_SIZE>(INEQ_IDX, 0) = A_ineq;
+        // _qp.A.template block<NUM_INEQ, VAR_SIZE>(INEQ_IDX, 0) = A_ineq;
 
         // Box constraints
         // from     l <= x + p <= u
         // to     l-x <= p     <= u-x
         _qp.u.template segment<VAR_SIZE>(BOX_IDX) = ubx - _x;
         _qp.l.template segment<VAR_SIZE>(BOX_IDX) = lbx - _x;
-        _qp.A.template block<VAR_SIZE, VAR_SIZE>(BOX_IDX, 0).setIdentity();
+        // _qp.A.template block<VAR_SIZE, VAR_SIZE>(BOX_IDX, 0).setIdentity();
 
         // solve the QP
         if (_info.iter == 1) {
@@ -287,8 +292,84 @@ private:
 
         _info.qp_solver_iter += _qp_solver.info().iter;
 
-        p = _qp_solver.x;
-        lambda = _qp_solver.y;
+        primal_step = _qp_solver.primal_solution();
+        dual_step = _qp_solver.dual_solution;
+    }
+
+    void update_P(bool first_iter)
+    {
+        if (first_iter) {
+            // TODO: move to constructor
+            _qp.P.resize(VAR_SIZE, VAR_SIZE);
+            for (int i = 0; i < VAR_SIZE; i++) {
+                // dense lower triangular matrix
+                _qp.P_col_nnz[i] = VAR_SIZE - i;
+            }
+            // _qp.P.reserve(VAR_SIZE*(VAR_SIZE+1));
+            _qp.P.reserve(P_col_nnz);
+            // fill dense lower triangular matrix
+            for (int row = 0; row < VAR_SIZE; row++) {
+                for (int col = 0; col <= row; col++) {
+                    _qp.P.insert(row, col) = B(row, col);
+                }
+            }
+            // for (int i = 0; i < VAR_SIZE; i++) {
+            //     _qp.P.col(i) = B.col(i).tail(VAR_SIZE-i);
+            // }
+            _qp.P.makeCompressed();
+        } else {
+            sparse_matrix_update(_qp.P, B);
+        }
+    }
+
+    void update_A(bool first_iter)
+    {
+        if (first_iter) {
+            sparse_insert_at(_qp.A, EQ_IDX, 0, A_eq);
+            sparse_insert_at(_qp.A, INEQ_IDX, 0, A_ineq);
+            for (int i = 0; i < VAR_SIZE; i++) {
+                _qp.A.insert(i+BOX_IDX, i) = 1.0;
+            }
+        } else {
+            for (int k = 0; k < _qp.A.outerSize(); ++k) {
+                for (typename SpMat::InnerIterator it(kkt_mat, k); it; ++it) {
+                    int row, col;
+                    row = it.row();
+                    col = it.col();
+                    if (row < EQ_IDX) {
+                        it.valueRef() = A_eq.coeff(row, col);
+                    } else if(row < INEQ_IDX) {
+                        it.valueRef() = A_ineq.coeff(row - EQ_IDX, col);
+                    } else {
+                        // Nothing to do: identity
+                        SOLVER_ASSERT(it.value() == 1.0);
+                        SOLVER_ASSERT(row - BOX_IDX == col);
+                    }
+                }
+            }
+        }
+    }
+
+    template <typename Mat>
+    void sparse_update(SpMat& A, const Mat& B)
+    {
+        for (int k = 0; k < A.outerSize(); ++k) {
+            for (typename SpMat::InnerIterator it(kkt_mat, k); it; ++it) {
+                int row, col;
+                row = it.row();
+                col = it.col();
+                it.valueRef() = B(row, col);
+            }
+        }
+    }
+
+    void sparse_insert_at(SpMat &dst, int row, int col, const SpMat &src) const
+    {
+        for (int k = 0; k < src.outerSize(); ++k) {
+            for (typename SpMat::InnerIterator it(src, k); it; ++it) {
+                dst.insert(row + it.row(), col + it.col()) = it.value();
+            }
+        }
     }
 
     /** Line search in direction p using l1 merit function. */

@@ -2,7 +2,7 @@
 #define NMPC_HPP
 
 #include "control/cost_collocation.hpp"
-#include "control/ode_collocation.hpp"
+#include "control/sparse_ode_collocation.hpp"
 #include "control/problem.hpp"
 #include "solvers/sqp.hpp"
 
@@ -38,6 +38,7 @@ public:
         NUM_INEQ = 0,
     };
 
+    using SpMat = Eigen::SparseMatrix<Scalar>;
     using ode_jacobian_t = typename ode_colloc_t::jacobian_t;
     using cost_gradient_t = var_t;
     using varx_t = typename Eigen::Matrix<Scalar, VARX_SIZE, 1>;
@@ -46,9 +47,9 @@ public:
     using sqp_t = sqp::SQP<nmpc>;
 
     using eq_t = Eigen::Matrix<Scalar, NUM_EQ, 1>;
-    using A_eq_t = Eigen::Matrix<Scalar, NUM_EQ, VAR_SIZE>;
+    using A_eq_t = SpMat; // Eigen::Matrix<Scalar, NUM_EQ, VAR_SIZE>;
     using ineq_t = Eigen::Matrix<Scalar, NUM_INEQ, 1>;
-    using A_ineq_t = Eigen::Matrix<Scalar, NUM_INEQ, VAR_SIZE>;
+    using A_ineq_t = SpMat; // Eigen::Matrix<Scalar, NUM_INEQ, VAR_SIZE>;
 
     cost_colloc_t cost_f;
     ode_colloc_t ps_ode;
@@ -107,15 +108,12 @@ public:
                                var_t& lbx,
                                var_t& ubx)
     {
-        // TODO: avoid stack allocation
         varx_t c_ode;
-        ode_jacobian_t ode_jac;
-
+        SpMat& ode_jac = A_eq;
         ps_ode.linearized(var, ode_jac, c_ode);
         set_constraints(var, c_ode, eq, ineq, lbx, ubx);
-
-        A_eq.setZero();
-        A_eq.template topRows<VARX_SIZE>() = ode_jac;
+        A_ineq.setZero();
+        ineq.setZero();
     }
 
     var_t solve(const State& x0, const State& xl, const State& xu, const Control& ul, const Control& uu)
