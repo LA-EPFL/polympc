@@ -14,7 +14,6 @@
 
 template <typename Scalar = double>
 class Timer {
-public:
     /** OS dependent */
 #ifdef __APPLE__
     using clock = std::chrono::system_clock;
@@ -26,6 +25,7 @@ public:
     time_point _start, _stop;
     std::vector<Scalar> _samples;
 
+public:
     time_point get_time()
     {
         return clock::now();
@@ -53,12 +53,17 @@ public:
         return _samples;
     }
 
+    Scalar sum()
+    {
+        return std::accumulate(_samples.begin(), _samples.end(), 0.0);
+    }
+
     Scalar mean()
     {
         if (_samples.size() == 0) {
             return 0;
         }
-        return std::accumulate(_samples.begin(), _samples.end(), 0.0) / _samples.size();
+        return sum() / _samples.size();
     }
 
     std::tuple<Scalar, Scalar> mean_std()
@@ -194,14 +199,16 @@ Eigen::SparseMatrix<Scalar> SpMat_gen_normal(int rows, int cols)
 {
     std::default_random_engine gen;
     std::normal_distribution<Scalar> normal_dist(0.0, 1.0);
-    std::uniform_int_distribution<> non_zero(0, 1);
+    // std::uniform_int_distribution<> non_zero(0, 1);
+    std::uniform_real_distribution<Scalar> non_zero(0.0, 1.0);
 
     using T = Eigen::Triplet<Scalar>;
     std::vector<T> triplet_list;
     triplet_list.reserve(rows * cols / 2);
     for (int c = 0; c < cols; c++) {
         for (int r = 0; r < rows; r++) {
-            if (non_zero(gen)) {
+            // if (non_zero(gen)) {
+            if (non_zero(gen) < 0.2) {
                 Scalar val = normal_dist(gen);
                 triplet_list.push_back(T(r, c, val));
             }
