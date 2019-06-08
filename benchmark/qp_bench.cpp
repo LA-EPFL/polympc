@@ -43,16 +43,17 @@ public:
             t.toc();
         }
         t.print();
-        std::tie(m1, s1) = t.mean_std();
+        // std::tie(m1, s1) = t.mean_std();
         t.clear();
 
         printf("update ");
         for (int i = 0; i < 100; i++) {
             t.tic();
-            solver.setup(qp);
+            solver.update_qp(qp);
             t.toc();
         }
         t.print();
+        std::tie(m1, s1) = t.mean_std();
         t.clear();
 
         printf("solve ");
@@ -70,6 +71,15 @@ public:
         printf("total: mean %.2f us,  std %.2f us\n", m, s);
 
         printf("iter %d\n", solver.info().iter);
+#ifdef QP_SOLVER_USE_SPARSE
+        int n = solver.kkt_mat.rows();
+        int nnz = solver.kkt_mat.nonZeros();
+        // double sparsity = 100*(1 - (double)nnz/n/n);
+        double sparsity = 100*(1 - (double)nnz*2/(n * (n+1))); // only count lower triangular part
+        printf("KKT sparsity %.2f%% (nnz %d)\n", sparsity, nnz);
+        // std::cout << "KKT matrix\n" << solver.kkt_mat << std::endl;
+#endif
+
         // sol = solver.primal_solution();
         // std::cout << "x " << sol.transpose() << std::endl;
         return std::make_tuple(size, m, s);
