@@ -283,12 +283,12 @@ int main()
     std::vector<std::tuple<int, double, double>> solve_times;
     std::tuple<int, double, double> t;
 
-    t = RandomQP_bench<1>();
-    solve_times.push_back(t);
-    t = RandomQP_bench<2>();
-    solve_times.push_back(t);
-    t = RandomQP_bench<3>();
-    solve_times.push_back(t);
+    // t = RandomQP_bench<1>();
+    // solve_times.push_back(t);
+    // t = RandomQP_bench<2>();
+    // solve_times.push_back(t);
+    // t = RandomQP_bench<3>();
+    // solve_times.push_back(t);
     t = RandomQP_bench<5>();
     solve_times.push_back(t);
     t = RandomQP_bench<7>();
