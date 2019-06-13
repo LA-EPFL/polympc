@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 
+#include <cmath>
 #include <chrono>
 #include <vector>
 #include <tuple>

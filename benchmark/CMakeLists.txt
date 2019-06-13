@@ -12,3 +12,6 @@ include_directories(../src)
 
 add_executable(qp_bench qp_bench.cpp)
 target_link_libraries(qp_bench Eigen3::Eigen)
+
+add_executable(sqp_bench sqp_bench.cpp)
+target_link_libraries(sqp_bench Eigen3::Eigen)
