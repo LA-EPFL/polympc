@@ -99,6 +99,64 @@ struct Rosenbrock : public ProblemBase<Rosenbrock,
     }
 };
 
+struct Rosenbrock10 : public ProblemBase<Rosenbrock10,
+                                       double,
+                                       /* Nx    */10,
+                                       /* Neq   */0,
+                                       /* Nineq */0>  {
+    const int N = 10;
+    using Scalar = double;
+    const Scalar a = 1;
+    const Scalar b = 100;
+
+    template <typename DerivedA, typename DerivedB>
+    void cost(const DerivedA& x, DerivedB &cst)
+    {
+        cst = 0;
+        for (int i = 0; i < N-1; i++) {
+            cst += pow(a - x[i], 2) + b * pow(x[i+1] - pow(x[i], 2), 2);
+        }
+    }
+
+    template <typename A, typename B, typename C>
+    void constraint(const A& x, B& eq, C& ineq, box_t& lbx, box_t& ubx)
+    {
+        // unconstrained
+        const Scalar infinity = std::numeric_limits<Scalar>::infinity();
+        lbx.setConstant(-infinity);
+        ubx.setConstant(infinity);
+    }
+};
+
+struct Rosenbrock50 : public ProblemBase<Rosenbrock50,
+                                       double,
+                                       /* Nx    */50,
+                                       /* Neq   */0,
+                                       /* Nineq */0>  {
+    const int N = 50;
+    using Scalar = double;
+    const Scalar a = 1;
+    const Scalar b = 100;
+
+    template <typename DerivedA, typename DerivedB>
+    void cost(const DerivedA& x, DerivedB &cst)
+    {
+        cst = 0;
+        for (int i = 0; i < N-1; i++) {
+            cst += pow(a - x[i], 2) + b * pow(x[i+1] - pow(x[i], 2), 2);
+        }
+    }
+
+    template <typename A, typename B, typename C>
+    void constraint(const A& x, B& eq, C& ineq, box_t& lbx, box_t& ubx)
+    {
+        // unconstrained
+        const Scalar infinity = std::numeric_limits<Scalar>::infinity();
+        lbx.setConstant(-infinity);
+        ubx.setConstant(infinity);
+    }
+};
+
 template <typename Solver>
 void callback(void *solver_p)
 {
@@ -108,19 +166,26 @@ void callback(void *solver_p)
     std::cout << s._x.transpose().format(fmt) << std::endl;
 }
 
-int main()
+template <typename _Problem>
+void test_problem()
 {
-    using Solver = sqp::SQP<Rosenbrock>;
-    Rosenbrock problem;
+    using Problem = _Problem;
+    using Solver = sqp::SQP<Problem>;
+    using var_t = typename Solver::var_t;
+    using dual_t = typename Solver::dual_t;
+    Problem problem;
     Solver solver;
     Timer t;
 
-    Eigen::Vector2d x;
-    Eigen::Vector2d x0 = {0, 0};
-    Eigen::Vector2d y0 = {0, 0};
+    std::cout << "N " << var_t::RowsAtCompileTime << std::endl;
 
-    solver.settings().max_iter = 1000;
-    // solver.settings().line_search_max_iter = 4;
+    var_t x;
+    var_t x0;
+    dual_t y0;
+    x0.setZero();
+    y0.setZero();
+
+    solver.settings().max_iter = 100;
     // solver.settings().iteration_callback = callback<Solver>;
 
     for (int i = 0; i < 100; i++) {
@@ -134,5 +199,13 @@ int main()
     x = solver.primal_solution();
 
     std::cout << "iter " << solver.info().iter << std::endl;
-    std::cout << "Solution " << x.transpose() << std::endl;
+    std::cout << "qp_solver_iter " << solver.info().qp_solver_iter << std::endl;
+    // std::cout << "Solution " << x.transpose() << std::endl;
+}
+
+int main()
+{
+    test_problem<Rosenbrock>();
+    test_problem<Rosenbrock10>();
+    test_problem<Rosenbrock50>();
 }
