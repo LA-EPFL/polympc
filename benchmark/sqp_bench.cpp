@@ -113,7 +113,7 @@ int main()
     using Solver = sqp::SQP<Rosenbrock>;
     Rosenbrock problem;
     Solver solver;
-    Timer<double> t;
+    Timer t;
 
     Eigen::Vector2d x;
     Eigen::Vector2d x0 = {0, 0};

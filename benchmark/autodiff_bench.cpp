@@ -41,7 +41,7 @@ void Eigen_benchmark()
     ADScalar res;
     ADVec x;
     double m1, m2, s1, s2;
-    Timer<double> t;
+    Timer t;
 
     // eval + diff
     x.fill(0.0);
@@ -105,7 +105,7 @@ void casadi_benchmark(int N)
     DM x0 = DM::zeros(N,1);
 
     double m1, m2, s1, s2;
-    Timer<double> t;
+    Timer t;
 
     for (int i = 0; i < NAVG; i++) {
         t.tic();
@@ -153,7 +153,7 @@ void casadi_benchmark_codegen(int N)
     Function gen_rb_grad = external("rb_grad", C);
 
     double m1, m2, s1, s2;
-    Timer<double> t;
+    Timer t;
 
     for (int i = 0; i < NAVG; i++) {
         t.tic();

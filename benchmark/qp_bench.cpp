@@ -34,7 +34,7 @@ public:
 
         Scalar m, m1, m2, s, s1, s2;
 
-        Timer<Scalar> t;
+        Timer t;
 
         printf("setup ");
         for (int i = 0; i < 100; i++) {
