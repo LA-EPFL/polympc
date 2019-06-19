@@ -2,6 +2,7 @@
 #include <fstream>
 #include <vector>
 
+#include "timer.hpp"
 #include "control/nmpc.hpp"
 #include "control/simple_robot_model.hpp"
 #include "polynomials/ebyshev.hpp"
@@ -130,8 +131,19 @@ int main(int argc, char **argv)
     traj_log.push_back(x);
 
     for (int i = 0; i < 50; i++) {
-
         var_t sol;
+
+        Timer t;
+        for (int j = 0; j < 100; j++) {
+            t.tic();
+            sol = robot_controller.solve(x, p);
+            t.toc();
+        }
+        t.print();
+        std::cout << "qp iter " << robot_controller.solver.info().qp_solver_iter << "    ";
+        std::cout << "iter    " << robot_controller.solver.info().iter << "    ";
+        break;
+
         if (i == 0) {
             sol = robot_controller.solve(x, p);
         } else {
