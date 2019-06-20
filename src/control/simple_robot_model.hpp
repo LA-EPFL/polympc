@@ -4,6 +4,42 @@
 #include "Eigen/Dense"
 #include "Eigen/Sparse"
 
+#include <iostream>
+#include <fstream>
+#include <Eigen/Dense>
+
+Eigen::MatrixXd readCSV(std::string file, int rows, int cols)
+{
+    std::ifstream in(file);
+    std::string line;
+
+    int row = 0;
+    int col = 0;
+
+    Eigen::MatrixXd res = Eigen::MatrixXd(rows, cols);
+
+    if (in.is_open()) {
+        while (std::getline(in, line)) {
+
+            char *ptr = (char *) line.c_str();
+            int len = line.length();
+            col = 0;
+
+            char *start = ptr;
+            for (int i = 0; i < len; i++) {
+                if (ptr[i] == ',') {
+                    res(row, col++) = atof(start);
+                    start = ptr + i + 1;
+                }
+            }
+            res(row, col) = atof(start);
+            row++;
+        }
+        in.close();
+    }
+    return res;
+}
+
 template <typename _Scalar = double>
 struct MobileRobot
 {
@@ -44,7 +80,12 @@ struct Lagrange
     Eigen::Matrix<Scalar, State::RowsAtCompileTime, State::RowsAtCompileTime> Q;
     Eigen::Matrix<Scalar, Control::RowsAtCompileTime, Control::RowsAtCompileTime> R;
 
-    Lagrange(){Q << 0.001, 0, 0, 0, 0.001, 0, 0, 0, 0.001; R << 1, 0, 0, 0.1;}
+    Lagrange(){
+        Q << 0.001, 0, 0, 0, 0.001, 0, 0, 0, 0.00001;
+        R << 0.01, 0, 0, 0.001;
+        Q = readCSV("../LQ.csv",3,3);
+        R = readCSV("../LR.csv",2,2);
+    }
     ~Lagrange(){}
 
 
@@ -64,7 +105,10 @@ struct Lagrange
 template<typename _Scalar = double>
 struct Mayer
 {
-    Mayer(){Q << 10.0, 0, 0, 0, 10.0, 0, 0, 0, 1.0;}
+    Mayer(){
+        Q << 5.0, 0, 0, 0, 5.0, 0, 0, 0, 1.0;
+        Q = readCSV("../MQ.csv",3,3);
+    }
     ~Mayer(){}
 
     using Scalar = _Scalar;
@@ -79,6 +123,7 @@ struct Mayer
     {
         using ScalarT = typename Eigen::MatrixBase<StateT>::Scalar;
         value = state.dot(Q.template cast<ScalarT>() * state);
+        // value += state.template segment<2>(0).template lpNorm<Eigen::Infinity>();
     }
 };
 

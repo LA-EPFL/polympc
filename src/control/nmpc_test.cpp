@@ -129,14 +129,14 @@ int main(int argc, char **argv)
     traj_log.reserve(100+1);
     traj_log.push_back(x);
 
-    for (int i = 0; i < 50; i++) {
+    for (int i = 0; i < 30; i++) {
 
         var_t sol;
         if (i == 0) {
             sol = robot_controller.solve(x, p);
         } else {
-            // sol = robot_controller.solve(x, p);
-            sol = robot_controller.solve_warm_start(x, p);
+            sol = robot_controller.solve(x, p);
+            // sol = robot_controller.solve_warm_start(x, p);
         }
 
         u = sol.segment<2>(VARX_SIZE+VARU_SIZE-NU);
