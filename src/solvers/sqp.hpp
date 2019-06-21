@@ -135,7 +135,10 @@ public:
     SQP()
     {
         _qp_solver.settings().warm_start = true;
+        // _qp_solver.settings().check_termination = 1;
         _qp_solver.settings().check_termination = 10;
+        _qp_solver.settings().eps_abs = 1e-4;
+        _qp_solver.settings().eps_rel = 1e-4;
         _qp_solver.settings().max_iter = 100;
         _qp_solver.settings().adaptive_rho = true;
         _qp_solver.settings().adaptive_rho_interval = 50;

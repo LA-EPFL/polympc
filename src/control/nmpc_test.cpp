@@ -99,7 +99,8 @@ int main(int argc, char **argv)
     State x = {-1, -1, 1.5};
     State dx;
     Control u;
-    Parameters p(1.0);
+    // Parameters p(1.0);
+    Parameters p(0.5);
 
     if (argc == 4) {
         double x0, y0, t0;
@@ -135,8 +136,8 @@ int main(int argc, char **argv)
         if (i == 0) {
             sol = robot_controller.solve(x, p);
         } else {
-            sol = robot_controller.solve(x, p);
-            // sol = robot_controller.solve_warm_start(x, p);
+            // sol = robot_controller.solve(x, p);
+            sol = robot_controller.solve_warm_start(x, p);
         }
 
         u = sol.segment<2>(VARX_SIZE+VARU_SIZE-NU);
