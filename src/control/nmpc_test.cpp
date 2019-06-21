@@ -150,7 +150,8 @@ int main(int argc, char **argv)
 
         // print_sol(sol);
         // print_duals(robot_controller.solver.dual_solution());
-        std::cout << "iter " << robot_controller.solver.info().iter << "    ";
+        std::cout << "iter " << robot_controller.solver.info().iter << "  ";
+        std::cout << "qp " << robot_controller.solver.info().qp_solver_iter << "    ";
         std::cout << "x " << x.transpose() << "    ";
         std::cout << "u " << u.transpose() << std::endl;
 

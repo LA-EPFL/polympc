@@ -140,7 +140,7 @@ public:
         dual_t y0;
         y0.setZero();
 
-        solver.settings().max_iter = 200;
+        solver.settings().max_iter = 1000;
         solver.settings().line_search_max_iter = 10;
 
         solver.solve(*this, var0, y0);
