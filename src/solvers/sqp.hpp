@@ -142,6 +142,7 @@ public:
         _qp_solver.settings().max_iter = 100;
         _qp_solver.settings().adaptive_rho = true;
         _qp_solver.settings().adaptive_rho_interval = 50;
+        _qp_solver.settings().alpha = 1.6;
     }
 
     inline const var_t& primal_solution() const { return _x; }

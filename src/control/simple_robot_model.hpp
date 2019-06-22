@@ -51,17 +51,10 @@ struct MobileRobot
     using Control    = Eigen::Matrix<Scalar, 2, 1>;
     using Parameters = Eigen::Matrix<Scalar, 1, 1>;
 
-    void operator() (const State &state, const Control &control, const Parameters &param, State &value) const
-    {
-        value[0] = control[0] * cos(state[2]) * cos(control[1]);
-        value[1] = control[0] * sin(state[2]) * cos(control[1]);
-        value[2] = control[0] * sin(control[1]) / param[0];
-    }
-
     /** the one for automatic differentiation */
-    template<typename DerivedA, typename DerivedB, typename DerivedC>
+    template<typename DerivedA, typename DerivedB, typename DerivedC, typename DerivedD>
     void operator() (const Eigen::MatrixBase<DerivedA> &state, const Eigen::MatrixBase<DerivedB> &control,
-                     const Eigen::MatrixBase<DerivedC> &param, Eigen::MatrixBase<DerivedA> &value) const
+                     const Eigen::MatrixBase<DerivedC> &param, Eigen::MatrixBase<DerivedD> &value) const
     {
         value[0] = control[0] * cos(state[2]) * cos(control[1]);
         value[1] = control[0] * sin(state[2]) * cos(control[1]);
@@ -123,7 +116,6 @@ struct Mayer
     {
         using ScalarT = typename Eigen::MatrixBase<StateT>::Scalar;
         value = state.dot(Q.template cast<ScalarT>() * state);
-        // value += state.template segment<2>(0).template lpNorm<Eigen::Infinity>();
     }
 };
 
