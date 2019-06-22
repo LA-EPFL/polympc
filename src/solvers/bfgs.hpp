@@ -26,12 +26,6 @@ void BFGS_update(Mat& B, const Vec& s, const Vec& y)
     sBs = s.dot(Bs);
     sy = s.dot(y);
 
-    if (sy < 1e-20) {
-        // B.setIdentity();
-        // printf("sy < 0\n");
-        return;
-    }
-
     if (sy < 0.2 * sBs) {
         // damped update to enforce positive definite B
         Scalar theta;
@@ -42,6 +36,10 @@ void BFGS_update(Mat& B, const Vec& s, const Vec& y)
         // unmodified BFGS
         r = y;
         sr = sy;
+    }
+
+    if (sr < 1e-20) {
+        return;
     }
 
     B.noalias() += -Bs * Bs.transpose() / sBs + r * r.transpose() / sr;
