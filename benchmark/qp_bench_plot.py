@@ -36,21 +36,34 @@ sparse = [
 ]
 sparse = np.array(sparse);
 
+dense[:,1:] /= 1e3
+sparse[:,1:] /= 1e3
+sparse_update[:,1:] /= 1e3
+
 # plt.plot(dense[:,0], dense[:,1], marker='.', label='dense')
 # plt.plot(sparse[:,0], sparse[:,1], marker='.', label='sparse')
 # plt.plot(sparse_update[:,0], sparse_update[:,1], marker='.', label='sparse (update)')
 
 kwargs = dict(
     marker='.',
-    # capsize=2,
-    ms=7
+    capsize=3,
+    ms=7,
+    ecolor='grey',
+    elinewidth=1,
+    # alpha=0.7,
+    # linewidth=2
 )
 
-plt.errorbar(dense[:,0], dense[:,1], dense[:,2], label='dense', **kwargs)
-plt.errorbar(sparse[:,0], sparse[:,1], sparse[:,2], label='sparse', **kwargs)
-plt.errorbar(sparse_update[:,0], sparse_update[:,1], sparse_update[:,2], label='sparse (update)', **kwargs)
+figsize = np.array([6.4, 4.8])
+figsize = 0.7*figsize
+fig, ax = plt.subplots(figsize=figsize)
+
+plt.errorbar(dense[:,0], dense[:,1], dense[:,2], color='C0', label='Eigen dense LDLT', **kwargs)
+plt.errorbar(sparse[:,0], sparse[:,1], sparse[:,2], color='C1', label='Eigen sparse LDLT', **kwargs)
+plt.errorbar(sparse_update[:,0], sparse_update[:,1], sparse_update[:,2], color='C2', label='Eigen sparse LDLT (caching)', **kwargs)
 plt.legend()
-plt.ylabel('solve time [$\mu s$]')
+# plt.ylabel('solve time [$\mu s$]')
+plt.ylabel('solve time [ms]')
 plt.xlabel('problem size')
 plt.savefig('random_qp.pdf', bbox_inches='tight')
 plt.show()
