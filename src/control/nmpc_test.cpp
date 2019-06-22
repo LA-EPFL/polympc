@@ -2,6 +2,7 @@
 #include <fstream>
 #include <vector>
 
+#include "timer.hpp"
 #include "control/nmpc.hpp"
 #include "control/simple_robot_model.hpp"
 #include "polynomials/ebyshev.hpp"
@@ -132,6 +133,8 @@ int main(int argc, char **argv)
 
     for (int i = 0; i < 30; i++) {
 
+        Timer tim;
+        tim.tic();
         var_t sol;
         if (i == 0) {
             sol = robot_controller.solve(x, p);
@@ -139,6 +142,9 @@ int main(int argc, char **argv)
             // sol = robot_controller.solve(x, p);
             sol = robot_controller.solve_warm_start(x, p);
         }
+        tim.toc();
+        double t = tim.mean();
+        tim.clear();
 
         u = sol.segment<2>(VARX_SIZE+VARU_SIZE-NU);
 
@@ -152,7 +158,8 @@ int main(int argc, char **argv)
         // print_sol(sol);
         // print_duals(robot_controller.solver.dual_solution());
         std::cout << "iter " << robot_controller.solver.info().iter << "  ";
-        std::cout << "qp " << robot_controller.solver.info().qp_solver_iter << "    ";
+        std::cout << "qp " << robot_controller.solver.info().qp_solver_iter << "  ";
+        printf("%5.2f ms  ", t/1000);
         std::cout << "x " << x.transpose() << "    ";
         std::cout << "u " << u.transpose() << std::endl;
 

@@ -74,8 +74,8 @@ struct Lagrange
     Eigen::Matrix<Scalar, Control::RowsAtCompileTime, Control::RowsAtCompileTime> R;
 
     Lagrange(){
-        Q << 0.001, 0, 0, 0, 0.001, 0, 0, 0, 0.00001;
-        R << 0.01, 0, 0, 0.001;
+        Q << 0.1, 0, 0, 0, 0.1, 0, 0, 0, 0.01;
+        R << 1, 0, 0, 0.001;
         Q = readCSV("../LQ.csv",3,3);
         R = readCSV("../LR.csv",2,2);
     }
@@ -99,7 +99,7 @@ template<typename _Scalar = double>
 struct Mayer
 {
     Mayer(){
-        Q << 5.0, 0, 0, 0, 5.0, 0, 0, 0, 1.0;
+        Q << 20, 0, 0, 0, 20, 0, 0, 0, 10;
         Q = readCSV("../MQ.csv",3,3);
     }
     ~Mayer(){}
