@@ -2,6 +2,13 @@
 #include <fstream>
 #include <vector>
 
+#include "Eigen/Dense"
+template<typename Derived>
+inline bool is_nan(const Eigen::MatrixBase<Derived>& x)
+{
+    return !((x.array() == x.array())).all();
+}
+
 #include "timer.hpp"
 #include "control/nmpc.hpp"
 #include "control/simple_robot_model.hpp"
@@ -14,8 +21,9 @@ void callback(void *solver_p)
     std::cout << s._x.transpose() << std::endl;
 }
 
-using Problem = polympc::OCProblem<MobileRobot<double>, Lagrange<double>, Mayer<double>>;
-using Approximation = Chebyshev<3, GAUSS_LOBATTO, double>; // POLY_ORDER = 3
+using Scalar = float;
+using Problem = polympc::OCProblem<MobileRobot<Scalar>, Lagrange<Scalar>, Mayer<Scalar>>;
+using Approximation = Chebyshev<3, GAUSS_LOBATTO, Scalar>; // POLY_ORDER = 3
 
 using controller_t = polympc::nmpc<Problem, Approximation, int>;
 using var_t = controller_t::var_t;
@@ -86,12 +94,6 @@ void save_csv(const char *name, const std::vector<Var>& vec)
     }
 }
 
-template<typename Derived>
-inline bool is_nan(const Eigen::MatrixBase<Derived>& x)
-{
-    return !((x.array() == x.array())).all();
-}
-
 int main(int argc, char **argv)
 {
     controller_t robot_controller;
@@ -104,7 +106,7 @@ int main(int argc, char **argv)
     Parameters p(0.5);
 
     if (argc == 4) {
-        double x0, y0, t0;
+        Scalar x0, y0, t0;
         x0 = atof(argv[1]);
         y0 = atof(argv[2]);
         t0 = atof(argv[3]);

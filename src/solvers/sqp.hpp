@@ -175,6 +175,9 @@ private:
             p_lambda -= _lambda;
 
             alpha = line_search(prob, p);
+            eigen_assert(!isnan(alpha));
+            eigen_assert(!is_nan(p));
+            eigen_assert(!is_nan(alpha*p));
 
             // take step
             _x = _x + alpha * p;

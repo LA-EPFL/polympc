@@ -11,6 +11,8 @@ include_directories(${GTEST_INCLUDE_DIRS})
 add_executable(ocproblem_test ocproblem_test.cpp)
 target_link_libraries(ocproblem_test Eigen3::Eigen ${GTEST_BOTH_LIBRARIES} pthread)
 
+set(CMAKE_BUILD_TYPE "Debug")
+
 add_executable(nmpc_test nmpc_test.cpp)
 target_link_libraries(nmpc_test Eigen3::Eigen)
 

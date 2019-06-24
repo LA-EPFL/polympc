@@ -7,6 +7,7 @@
 #endif
 #include <cmath>
 #include <limits>
+#include <Eigen/Eigenvalues>
 
 #ifndef SOLVER_ASSERT
 #define SOLVER_ASSERT(x) eigen_assert(x)
@@ -43,6 +44,19 @@ struct QP {
     Eigen::Matrix<Scalar, n, 1> q;
     Eigen::Matrix<Scalar, m, n> A;
     Eigen::Matrix<Scalar, m, 1> l, u;
+
+    bool _is_posdef() const
+    {
+        using Mat = Eigen::Matrix<Scalar, n, n>;
+        Eigen::EigenSolver<Mat> eigensolver(P);
+        for (int i = 0; i < eigensolver.eigenvalues().rows(); i++) {
+            double v = eigensolver.eigenvalues()(i).real();
+            if (v <= 0) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
@@ -259,12 +273,24 @@ public:
             y.setZero();
         }
 
+        eigen_assert(!is_nan(qp.P));
+        eigen_assert(!is_nan(qp.q));
+        eigen_assert(!is_nan(qp.A));
+        eigen_assert(!is_nan(qp.l));
+        eigen_assert(!is_nan(qp.u));
+        eigen_assert(qp._is_posdef());
+
         for (iter = 1; iter <= _settings.max_iter; iter++) {
+            eigen_assert(!is_nan(x));
+            eigen_assert(!is_nan(z));
+            eigen_assert(!is_nan(y));
             z_prev = z;
 
             // update x_tilde z_tilde
             form_KKT_rhs(qp, rhs);
+            eigen_assert(!is_nan(rhs));
             x_tilde_nu = linear_solver.solve(rhs);
+            eigen_assert(!is_nan(x_tilde_nu));
 
             x_tilde = x_tilde_nu.template head<n>();
             z_tilde = z_prev + rho_inv_vec.cwiseProduct(x_tilde_nu.template tail<m>() - y);
