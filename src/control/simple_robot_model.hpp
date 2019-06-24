@@ -4,42 +4,6 @@
 #include "Eigen/Dense"
 #include "Eigen/Sparse"
 
-#include <iostream>
-#include <fstream>
-#include <Eigen/Dense>
-
-Eigen::MatrixXd readCSV(std::string file, int rows, int cols)
-{
-    std::ifstream in(file);
-    std::string line;
-
-    int row = 0;
-    int col = 0;
-
-    Eigen::MatrixXd res = Eigen::MatrixXd(rows, cols);
-
-    if (in.is_open()) {
-        while (std::getline(in, line)) {
-
-            char *ptr = (char *) line.c_str();
-            int len = line.length();
-            col = 0;
-
-            char *start = ptr;
-            for (int i = 0; i < len; i++) {
-                if (ptr[i] == ',') {
-                    res(row, col++) = atof(start);
-                    start = ptr + i + 1;
-                }
-            }
-            res(row, col) = atof(start);
-            row++;
-        }
-        in.close();
-    }
-    return res;
-}
-
 template <typename _Scalar = double>
 struct MobileRobot
 {
@@ -51,10 +15,17 @@ struct MobileRobot
     using Control    = Eigen::Matrix<Scalar, 2, 1>;
     using Parameters = Eigen::Matrix<Scalar, 1, 1>;
 
+    void operator() (const State &state, const Control &control, const Parameters &param, State &value) const
+    {
+        value[0] = control[0] * cos(state[2]) * cos(control[1]);
+        value[1] = control[0] * sin(state[2]) * cos(control[1]);
+        value[2] = control[0] * sin(control[1]) / param[0];
+    }
+
     /** the one for automatic differentiation */
-    template<typename DerivedA, typename DerivedB, typename DerivedC, typename DerivedD>
+    template<typename DerivedA, typename DerivedB, typename DerivedC>
     void operator() (const Eigen::MatrixBase<DerivedA> &state, const Eigen::MatrixBase<DerivedB> &control,
-                     const Eigen::MatrixBase<DerivedC> &param, Eigen::MatrixBase<DerivedD> &value) const
+                     const Eigen::MatrixBase<DerivedC> &param, Eigen::MatrixBase<DerivedA> &value) const
     {
         value[0] = control[0] * cos(state[2]) * cos(control[1]);
         value[1] = control[0] * sin(state[2]) * cos(control[1]);
@@ -74,10 +45,8 @@ struct Lagrange
     Eigen::Matrix<Scalar, Control::RowsAtCompileTime, Control::RowsAtCompileTime> R;
 
     Lagrange(){
-        Q << 0.1, 0, 0, 0, 0.1, 0, 0, 0, 0.01;
+        Q << 0.5, 0, 0, 0, 0.5, 0, 0, 0, 0.01;
         R << 1, 0, 0, 0.001;
-        Q = readCSV("../LQ.csv",3,3);
-        R = readCSV("../LR.csv",2,2);
     }
     ~Lagrange(){}
 
@@ -100,7 +69,6 @@ struct Mayer
 {
     Mayer(){
         Q << 20, 0, 0, 0, 20, 0, 0, 0, 10;
-        Q = readCSV("../MQ.csv",3,3);
     }
     ~Mayer(){}
 

@@ -384,10 +384,14 @@ private:
         prob.constraint(x, c_eq, c_ineq, lbx, ubx);
 
         // c_eq = 0
-        c = fmax(c, c_eq.template lpNorm<Eigen::Infinity>());
+        if (NUM_EQ > 0) {
+            c = fmax(c, c_eq.template lpNorm<Eigen::Infinity>());
+        }
 
         // c_ineq <= 0
-        c = fmax(c, c_ineq.maxCoeff());;
+        if (NUM_INEQ > 0) {
+            c = fmax(c, c_ineq.maxCoeff());;
+        }
 
         // l <= x <= u
         c = fmax(c, (lbx - x).maxCoeff());

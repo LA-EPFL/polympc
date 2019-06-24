@@ -60,6 +60,8 @@ public:
     State _constr_xl, _constr_xu;
     Control _constr_ul, _constr_uu;
 
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
     /*
      * var_t var = [xn, ..., x0, un, ..., u0, p]
      *
