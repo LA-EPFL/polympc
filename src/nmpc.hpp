@@ -3,29 +3,12 @@
 
 #include <memory>
 #include "chebyshev.hpp"
+#include "chebyshev_ms.hpp"
 
-#define POLYMPC_USE_CONSTRAINTS
+#define USE_MULTIPLE_SHOOTING 1
+#define RESOURCE_CONSTRAINTS 1
 
 namespace polympc {
-
-/**
-std::set<std::string> available_options = {"spectral.number_segments", "spectral.poly_order", "spectral.tf"};
-
-template<typename ParamType>
-ParamType get_param(const std::string &key, const casadi::Dict dict, const ParamType &default_val)
-{
-    if((available_options.find(key) != available_options.end()) && (dict.find(key) != dict.end()))
-        return dict.find(key)->second;
-    else if((available_options.find(key) == available_options.end()) && (dict.find(key) != dict.end()))
-    {
-        std::cout << "Unknown  parameter: " << key << "\n"; // << "Available parameters: " << available_options << "\n";
-        return default_val;
-    }
-    else
-        return default_val;
-}
-
-*/
 
 template <typename System, int NX, int NU, int NumSegments = 2, int PolyOrder = 5>
 class nmpc
@@ -50,14 +33,25 @@ public:
     void setLBU(const casadi::DM &_lbu)
     {
         int start = NX * (PolyOrder * NumSegments + 1 );
+#ifdef USE_MULTIPLE_SHOOTING
+        int finish = start + NU * NumSegments;
+        ARG["lbx"](casadi::Slice(start, finish)) = casadi::SX::repmat(casadi::SX::mtimes(Scale_U, _lbu), NumSegments, 1);
+#else
         int finish = start + NU * (PolyOrder * NumSegments + 1 );
         ARG["lbx"](casadi::Slice(start, finish)) = casadi::SX::repmat(casadi::SX::mtimes(Scale_U, _lbu), PolyOrder * NumSegments + 1, 1);
+#endif
     }
+
     void setUBU(const casadi::DM &_ubu)
     {
         int start = NX * (PolyOrder * NumSegments + 1 );
+#ifdef USE_MULTIPLE_SHOOTING
+        int finish = start + NU * NumSegments;
+        ARG["ubx"](casadi::Slice(start, finish)) = casadi::SX::repmat(casadi::SX::mtimes(Scale_U, _ubu), NumSegments, 1);
+#else
         int finish = start + NU * (PolyOrder * NumSegments + 1 );
-        ARG["ubx"](casadi::Slice(start, finish)) = casadi::SX::repmat(casadi::SX::mtimes(Scale_U, _ubu), PolyOrder * NumSegments + 1, 1);
+        ARG["lbx"](casadi::Slice(start, finish)) = casadi::SX::repmat(casadi::SX::mtimes(Scale_U, _ubu), PolyOrder * NumSegments + 1, 1);
+#endif
     }
 
     void setStateScaling(const casadi::DM &Scaling){Scale_X = Scaling;
@@ -119,6 +113,7 @@ private:
     bool WARM_START;
     bool _initialized;
     bool scale;
+    bool use_multiple_shooting;
 
     /** TRACE FUNCTIONS */
     casadi::Function DynamicsFunc;
@@ -253,7 +248,11 @@ void nmpc<System, NX, NU, NumSegments, PolyOrder>::createNLP(const casadi::Dict 
     NUM_COLLOCATION_POINTS = num_segments * poly_order;
     /** Order of polynomial interpolation */
 
+#ifdef USE_MULTIPLE_SHOOTING
+    MSChebyshev<casadi::SX, poly_order, num_segments, dimx, dimu, dimp> spectral;
+#else
     Chebyshev<casadi::SX, poly_order, num_segments, dimx, dimu, dimp> spectral;
+#endif
     casadi::SX diff_constr;
 
     if(scale)
@@ -269,7 +268,7 @@ void nmpc<System, NX, NU, NumSegments, PolyOrder>::createNLP(const casadi::Dict 
         diff_constr = spectral.CollocateDynamics(DynamicsFunc, 0, tf);
     }
 
-    diff_constr = diff_constr(casadi::Slice(0, diff_constr.size1() - dimx));
+    //diff_constr = diff_constr(casadi::Slice(0, diff_constr.size1() - dimx));
 
     /** define an integral cost */
     casadi::SX lagrange, residual;
@@ -314,12 +313,28 @@ void nmpc<System, NX, NU, NumSegments, PolyOrder>::createNLP(const casadi::Dict 
     casadi::SX ubx = casadi::SX::repmat(casadi::SX::mtimes(Scale_X, UBX), poly_order * num_segments + 1, 1);
 
     /** control */
+#ifdef USE_MULTIPLE_SHOOTING
+    lbx = casadi::SX::vertcat( {lbx, casadi::SX::repmat(casadi::SX::mtimes(Scale_U, LBU), num_segments, 1)} );
+    ubx = casadi::SX::vertcat( {ubx, casadi::SX::repmat(casadi::SX::mtimes(Scale_U, UBU), num_segments, 1)} );
+#else
     lbx = casadi::SX::vertcat( {lbx, casadi::SX::repmat(casadi::SX::mtimes(Scale_U, LBU), poly_order * num_segments + 1, 1)} );
     ubx = casadi::SX::vertcat( {ubx, casadi::SX::repmat(casadi::SX::mtimes(Scale_U, UBU), poly_order * num_segments + 1, 1)} );
-
+#endif
     casadi::SX diff_constr_jacobian = casadi::SX::jacobian(diff_constr, opt_var);
     /** Augmented Jacobian */
     m_Jacobian = casadi::Function("aug_jacobian",{opt_var}, {diff_constr_jacobian});
+
+    //introduce problem specific constraints
+#ifdef RESOURCE_CONSTRAINTS
+    casadi::Function D_func = casadi::Function("D_func",{x,u},{u(1)});
+    casadi::SX D_vec = spectral.CollocateFunction(D_func);
+    D_vec = D_vec(casadi::Slice(0, D_vec.size1() - 1));
+
+    casadi::SX D_constraint = casadi::SX::sum1(D_vec) - PolyOrder * NumSegments;
+    diff_constr = casadi::SX::vertcat({diff_constr, D_constraint});
+    lbg = casadi::SX::vertcat({lbg, casadi::SX(0)});
+    ubg = casadi::SX::vertcat({ubg, casadi::SX(0)});
+#endif
 
     /** formulate NLP */
     NLP["x"] = opt_var;
@@ -350,8 +365,13 @@ void nmpc<System, NX, NU, NumSegments, PolyOrder>::createNLP(const casadi::Dict 
     casadi::DM feasible_state = casadi::DM::zeros(UBX.size());
     casadi::DM feasible_control = casadi::DM::zeros(UBU.size());
 
+#ifdef USE_MULTIPLE_SHOOTING
+    ARG["x0"] = casadi::DM::vertcat(casadi::DMVector{casadi::DM::repmat(feasible_state, poly_order * num_segments + 1, 1),
+                                     casadi::DM::repmat(feasible_control, num_segments, 1)});
+#else
     ARG["x0"] = casadi::DM::vertcat(casadi::DMVector{casadi::DM::repmat(feasible_state, poly_order * num_segments + 1, 1),
                                      casadi::DM::repmat(feasible_control, poly_order * num_segments + 1, 1)});
+#endif
 }
 
 template<typename System, int NX, int NU, int NumSegments, int PolyOrder>
@@ -393,12 +413,15 @@ void nmpc<System, NX, NU, NumSegments, PolyOrder>::computeControl(const casadi::
     NLP_LAM_G = res.at("lam_g");
 
     casadi::DM opt_x = NLP_X(casadi::Slice(0, (N + 1) * NX));
-    //DM invSX = DM::solve(Scale_X, DM::eye(15));
     OptimalTrajectory = casadi::DM::mtimes(invSX, casadi::DM::reshape(opt_x, NX, N + 1));
-    //casadi::DM opt_u = NLP_X( casadi::Slice((N + 1) * NX, NLP_X.size1()) );
+
+#ifdef USE_MULTIPLE_SHOOTING
+    casadi::DM opt_u = NLP_X( casadi::Slice((N + 1) * NX, (N + 1) * NX + (NumSegments) * NU ) );
+    OptimalControl = casadi::DM::mtimes(invSU, casadi::DM::reshape(opt_u, NU, NumSegments));
+#else
     casadi::DM opt_u = NLP_X( casadi::Slice((N + 1) * NX, (N + 1) * NX + (N + 1) * NU ) );
-    //DM invSU = DM::solve(Scale_U, DM::eye(4));
     OptimalControl = casadi::DM::mtimes(invSU, casadi::DM::reshape(opt_u, NU, N + 1));
+#endif
 
     stats = NLP_Solver.stats();
     std::cout << stats << "\n";

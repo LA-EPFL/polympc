@@ -35,3 +35,6 @@ target_link_libraries(auto_diff_test ${CASADI_LIBRARIES} Eigen3::Eigen)
 
 add_executable(auto_diff_test2 auto_diff_test2.cpp)
 target_link_libraries(auto_diff_test2 Eigen3::Eigen)
+
+add_executable(resource_mpc resource_mpc.cpp)
+target_link_libraries(resource_mpc polymath Eigen3::Eigen)
