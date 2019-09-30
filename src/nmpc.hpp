@@ -284,6 +284,9 @@ void nmpc<System, NX, NU, NumSegments, PolyOrder>::createNLP(const casadi::Dict 
         residual  = Reference - output({x})[0];
         lagrange  = casadi::SX::sum1( casadi::SX::mtimes(Q, pow(residual, 2)) );
         lagrange = lagrange + casadi::SX::sum1( casadi::SX::mtimes(R, pow(u, 2)) );
+
+        // specific to the resource mpc problem
+        lagrange = lagrange - 1e-3 * x(2);
     }
 
     casadi::Function LagrangeTerm = casadi::Function("Lagrange", {x, u}, {lagrange});
@@ -334,6 +337,25 @@ void nmpc<System, NX, NU, NumSegments, PolyOrder>::createNLP(const casadi::Dict 
     diff_constr = casadi::SX::vertcat({diff_constr, D_constraint});
     lbg = casadi::SX::vertcat({lbg, casadi::SX(0)});
     ubg = casadi::SX::vertcat({ubg, casadi::SX(0)});
+
+    if(1)
+    {
+        const double Dmin = 0.01;
+        const double Dmax = (tf / num_segments);
+        const double Delta = Dmax - Dmin;
+        const double min_cost = 0.01;
+        const double max_cost = 0.25;
+        const double b = 2 * (min_cost - max_cost) / (Delta);
+        const double a = (min_cost - max_cost) / pow(Delta,2) + b / Delta;
+        casadi::SX D = (tf / (2 * NumSegments)) * u(1); // "D" in Colin's report
+        casadi::SX mu_D = a * pow((D - Dmin), 2) + b * (D - Dmin) + max_cost;
+        casadi::Function ctl_func = casadi::Function("ctl_func",{x,u},{(2) - mu_D});
+        casadi::SX ctl_constr = spectral.CollocateFunction(ctl_func);
+
+        diff_constr = casadi::SX::vertcat({diff_constr, ctl_constr});
+        lbg = casadi::SX::vertcat({lbg, casadi::SX::repmat(0.0, ctl_constr.size1(), 1)});
+        ubg = casadi::SX::vertcat({ubg, casadi::SX::repmat(casadi::SX::inf(), ctl_constr.size1(), 1)});
+    }
 #endif
 
     /** formulate NLP */

@@ -22,13 +22,19 @@ System::System()
 {
     casadi::SX u = casadi::SX::sym("u");
     casadi::SX D = casadi::SX::sym("D");
+    casadi::SX v = casadi::SX::sym("v"); // resource rate
 
     casadi::SX x = casadi::SX::sym("x", 2);
+    casadi::SX e = casadi::SX::sym("e"); // resources
 
-    state = x;
-    control = casadi::SX::vertcat({u,D});
+    state = casadi::SX::vertcat({x,e});
+    control = casadi::SX::vertcat({u,D,v});
 
-    Dynamics = casadi::SX::vertcat({D * u, D * x(0)});
+    const double gamma = 0.25; // resource_recharge_rate
+
+    casadi::SX mu_D = v; // first case
+
+    Dynamics = casadi::SX::vertcat({D * u, D * x(0), gamma - v});
     NumDynamics = casadi::Function("Dynamics", {state, control}, {Dynamics});
 
     /** define output mapping */
@@ -40,8 +46,8 @@ using namespace casadi;
 int main(void)
 {
     // create the MPC controller
-    const int dimx = 2;
-    const int dimu = 2;
+    const int dimx = 3;
+    const int dimu = 3;
     const int num_segments = 6;
     const int poly_order = 3;
     double tf = 3.0;
@@ -49,23 +55,26 @@ int main(void)
 
     casadi::DMDict mpc_props;
     mpc_props["mpc.Q"] = casadi::DM(100);
-    mpc_props["mpc.R"] = casadi::DM::diag(casadi::DM(std::vector<double>{0.5,0}));
+    mpc_props["mpc.R"] = casadi::DM::diag(casadi::DM(std::vector<double>{0.5,0,0}));
     mpc_props["mpc.P"] = casadi::DM(100);
 
     polympc::nmpc<System, dimx, dimu, num_segments, poly_order> mpc(y_ref, tf, mpc_props);
 
     /** set state and control constraints */
-    DM lbu = DM(std::vector<double>{-10, 0.5});
-    DM ubu = DM(std::vector<double>{10, 2});
+    DM lbu = DM(std::vector<double>{-10, 0.5, 0.01});
+    DM ubu = DM(std::vector<double>{10, 2, 0.3});
     mpc.setLBU(lbu);
     mpc.setUBU(ubu);
 
-    DM lbx = DM::vertcat({-DM::inf(), -5});
-    DM ubx = DM::vertcat({ DM::inf(),  5});
+    const double max_resource = 1.0;
+    const double e0 = max_resource / 2;
+
+    DM lbx = DM::vertcat({-DM::inf(), -5, 0});
+    DM ubx = DM::vertcat({ DM::inf(),  5, max_resource});
     mpc.setLBX(lbx);
     mpc.setUBX(ubx);
 
-    DM state = DM::vertcat({0, 0});
+    DM state = DM::vertcat({0, 0, e0});
     mpc.computeControl(state);
     DM opt_ctl  = mpc.getOptimalControl();
     DM opt_traj = mpc.getOptimalTrajetory();
