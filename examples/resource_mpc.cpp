@@ -34,7 +34,7 @@ System::System()
 
     casadi::SX mu_D = v; // first case
 
-    Dynamics = casadi::SX::vertcat({D * u, D * x(0), gamma - v});
+    Dynamics = casadi::SX::vertcat({D * u, D * x(0), D * (gamma - v)});
     NumDynamics = casadi::Function("Dynamics", {state, control}, {Dynamics});
 
     /** define output mapping */
@@ -61,8 +61,8 @@ int main(void)
     polympc::nmpc<System, dimx, dimu, num_segments, poly_order> mpc(y_ref, tf, mpc_props);
 
     /** set state and control constraints */
-    DM lbu = DM(std::vector<double>{-10, 0.5, 0.01});
-    DM ubu = DM(std::vector<double>{10, 2, 0.3});
+    DM lbu = DM(std::vector<double>{-10, 0.5, 0.25});
+    DM ubu = DM(std::vector<double>{10, 2, 0.5});
     mpc.setLBU(lbu);
     mpc.setUBU(ubu);
 

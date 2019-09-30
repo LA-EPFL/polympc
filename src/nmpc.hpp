@@ -338,7 +338,7 @@ void nmpc<System, NX, NU, NumSegments, PolyOrder>::createNLP(const casadi::Dict 
     lbg = casadi::SX::vertcat({lbg, casadi::SX(0)});
     ubg = casadi::SX::vertcat({ubg, casadi::SX(0)});
 
-    if(1)
+    if(0)
     {
         const double Dmin = 0.01;
         const double Dmax = (tf / num_segments);
