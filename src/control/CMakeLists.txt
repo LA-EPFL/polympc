@@ -25,3 +25,6 @@ target_link_libraries(cost_approx_test Eigen3::Eigen)
 
 add_executable(constraint_collocation_test constraint_collocation_test.cpp)
 target_link_libraries(constraint_collocation_test Eigen3::Eigen)
+
+add_executable(resource_mpc2 resource_mpc.cpp)
+target_link_libraries(resource_mpc2 Eigen3::Eigen)
