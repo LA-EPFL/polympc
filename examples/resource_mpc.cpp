@@ -61,8 +61,8 @@ int main(void)
     polympc::nmpc<System, dimx, dimu, num_segments, poly_order> mpc(y_ref, tf, mpc_props);
 
     /** set state and control constraints */
-    DM lbu = DM(std::vector<double>{-10, 0.5, 0.25});
-    DM ubu = DM(std::vector<double>{10, 2, 0.5});
+    DM lbu = DM(std::vector<double>{-10, 0.5, 0.0});
+    DM ubu = DM(std::vector<double>{10, 2, 0.25});
     mpc.setLBU(lbu);
     mpc.setUBU(ubu);
 

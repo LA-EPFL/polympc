@@ -54,10 +54,14 @@ public:
 #endif
     }
 
+    void setReference(const casadi::DM &_reference){ARG["p"] = _reference;}
+
     void setStateScaling(const casadi::DM &Scaling){Scale_X = Scaling;
                                                       invSX = casadi::DM::solve(Scale_X, casadi::DM::eye(Scale_X.size1()));}
     void setControlScaling(const casadi::DM &Scaling){Scale_U = Scaling;
                                                       invSU = casadi::DM::solve(Scale_U, casadi::DM::eye(Scale_U.size1()));}
+
+    casadi::DMVector evalTraceFunction(const casadi::DMVector arg){return TraceFunction(arg);}
 
     void createNLP(const casadi::Dict &solver_options);
     void updateParams(const casadi::Dict &params);
@@ -121,6 +125,7 @@ private:
     casadi::Function PerformanceIndex;
     casadi::Function CostFunction;
     casadi::Function PathError;
+    casadi::Function TraceFunction;
 
     casadi::Function m_Jacobian;
     casadi::Function m_Dynamics;
@@ -140,9 +145,9 @@ nmpc<System, NX, NU, NumSegments, PolyOrder>::nmpc(const casadi::DM &_reference,
 
     casadi::Function output   = system.getOutputMapping();
     ny = output.nnz_out();
-    Reference = _reference;
 
-    assert(ny == Reference.size1());
+    assert(ny == _reference.size1());
+    setReference(_reference);
 
     Q = casadi::SX::eye(ny);
     P = casadi::SX::eye(ny);
@@ -271,6 +276,8 @@ void nmpc<System, NX, NU, NumSegments, PolyOrder>::createNLP(const casadi::Dict 
     //diff_constr = diff_constr(casadi::Slice(0, diff_constr.size1() - dimx));
 
     /** define an integral cost */
+    Reference = casadi::SX::sym("y_ref", ny);
+
     casadi::SX lagrange, residual;
     if(scale)
     {
@@ -292,7 +299,7 @@ void nmpc<System, NX, NU, NumSegments, PolyOrder>::createNLP(const casadi::Dict 
     casadi::Function LagrangeTerm = casadi::Function("Lagrange", {x, u}, {lagrange});
 
     /** trace functions */
-    PathError = casadi::Function("PathError", {x}, {residual});
+    PathError = casadi::Function("PathError", {x, Reference}, {residual});
 
     casadi::SX mayer           =  casadi::SX::sum1( casadi::SX::mtimes(P, pow(residual, 2)) );
     casadi::Function MayerTerm = casadi::Function("Mayer",{x}, {mayer});
@@ -338,23 +345,31 @@ void nmpc<System, NX, NU, NumSegments, PolyOrder>::createNLP(const casadi::Dict 
     lbg = casadi::SX::vertcat({lbg, casadi::SX(0)});
     ubg = casadi::SX::vertcat({ubg, casadi::SX(0)});
 
-    if(0)
+    if(1)
     {
         const double Dmin = 0.01;
-        const double Dmax = (tf / num_segments);
+        const double Dmax = 1.0;
         const double Delta = Dmax - Dmin;
         const double min_cost = 0.01;
         const double max_cost = 0.25;
         const double b = 2 * (min_cost - max_cost) / (Delta);
-        const double a = (min_cost - max_cost) / pow(Delta,2) + b / Delta;
+        const double a = (min_cost - max_cost) / pow(Delta,2) - (b / Delta);
         casadi::SX D = (tf / (2 * NumSegments)) * u(1); // "D" in Colin's report
         casadi::SX mu_D = a * pow((D - Dmin), 2) + b * (D - Dmin) + max_cost;
         casadi::Function ctl_func = casadi::Function("ctl_func",{x,u},{u(2) - mu_D});
+        //casadi::Function ctl_func = casadi::Function("ctl_func",{x,u},{mu_D});
         casadi::SX ctl_constr = spectral.CollocateFunction(ctl_func);
+        ctl_constr = ctl_constr(casadi::Slice(1, ctl_constr.size1()));
+        casadi::SX ctl_constr_sort;
 
-        diff_constr = casadi::SX::vertcat({diff_constr, ctl_constr});
-        lbg = casadi::SX::vertcat({lbg, casadi::SX::repmat(0.0, ctl_constr.size1(), 1)});
-        ubg = casadi::SX::vertcat({ubg, casadi::SX::repmat(casadi::SX::inf(), ctl_constr.size1(), 1)});
+        for(int i=0; i < ctl_constr.size1(); i += 3)
+            ctl_constr_sort = casadi::SX::vertcat({ctl_constr_sort, ctl_constr(i)});
+
+        TraceFunction = casadi::Function("TraceFunc",{opt_var},{ctl_constr_sort});
+
+        diff_constr = casadi::SX::vertcat({diff_constr, ctl_constr_sort});
+        lbg = casadi::SX::vertcat({lbg, casadi::SX::repmat(0.0, ctl_constr_sort.size1(), 1)});
+        ubg = casadi::SX::vertcat({ubg, casadi::SX::repmat(casadi::SX::inf(), ctl_constr_sort.size1(), 1)});
     }
 #endif
 
@@ -362,6 +377,7 @@ void nmpc<System, NX, NU, NumSegments, PolyOrder>::createNLP(const casadi::Dict 
     NLP["x"] = opt_var;
     NLP["f"] = performance_idx; //  1e-3 * casadi::SX::dot(diff_constr, diff_constr);
     NLP["g"] = diff_constr;
+    NLP["p"] = Reference;
 
     /** default solver options */
     OPTS["ipopt.linear_solver"]         = "mumps";
@@ -446,7 +462,10 @@ void nmpc<System, NX, NU, NumSegments, PolyOrder>::computeControl(const casadi::
 #endif
 
     stats = NLP_Solver.stats();
-    std::cout << stats << "\n";
+
+    casadi::DMVector result = evalTraceFunction({NLP_X});
+    std::cout << "Input constraints: " << result[0] << "\n";
+    //std::cout << stats << "\n";
 
     std::string solve_status = static_cast<std::string>(stats["return_status"]);
     if(solve_status.compare("Invalid_Number_Detected") == 0)
@@ -472,7 +491,7 @@ double nmpc<System, NX, NU, NumSegments, PolyOrder>::getPathError()
     {
         casadi::DM state = OptimalTrajectory(casadi::Slice(0, OptimalTrajectory.size1()), OptimalTrajectory.size2() - 1);
         state = casadi::DM::mtimes(Scale_X, state);
-        casadi::DMVector tmp = PathError(casadi::DMVector{state});
+        casadi::DMVector tmp = PathError(casadi::DMVector{state, ARG["p"]});
         error = casadi::DM::norm_2( tmp[0] ).nonzeros()[0];
     }
     return error;
