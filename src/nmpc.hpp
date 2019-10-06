@@ -349,7 +349,7 @@ void nmpc<System, NX, NU, NumSegments, PolyOrder>::createNLP(const casadi::Dict 
         const double a = (min_cost - max_cost) / pow(Delta,2) + b / Delta;
         casadi::SX D = (tf / (2 * NumSegments)) * u(1); // "D" in Colin's report
         casadi::SX mu_D = a * pow((D - Dmin), 2) + b * (D - Dmin) + max_cost;
-        casadi::Function ctl_func = casadi::Function("ctl_func",{x,u},{(2) - mu_D});
+        casadi::Function ctl_func = casadi::Function("ctl_func",{x,u},{u(2) - mu_D});
         casadi::SX ctl_constr = spectral.CollocateFunction(ctl_func);
 
         diff_constr = casadi::SX::vertcat({diff_constr, ctl_constr});
