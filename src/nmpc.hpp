@@ -463,8 +463,8 @@ void nmpc<System, NX, NU, NumSegments, PolyOrder>::computeControl(const casadi::
 
     stats = NLP_Solver.stats();
 
-    casadi::DMVector result = evalTraceFunction({NLP_X});
-    std::cout << "Input constraints: " << result[0] << "\n";
+    //casadi::DMVector result = evalTraceFunction({NLP_X});
+    //std::cout << "Input constraints: " << result[0] << "\n";
     //std::cout << stats << "\n";
 
     std::string solve_status = static_cast<std::string>(stats["return_status"]);
