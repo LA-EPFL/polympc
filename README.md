@@ -1,4 +1,4 @@
-# PolyMPC: the code has moved epfl.gitlab.ch but is still open for academic use. Please request from contacts below.
+# PolyMPC: the code has moved epfl.gitlab.ch but is still open for academic use. Please request the access from contacts below.
 PolyMPC: An Efficient and Extensible Tool for Real-Time Nonlinear Model Predictive Tracking and Path Following for Fast Mechatronic Systems. Developed at the Automatic Control laboratory EPFL as part of the AWESCO project.
 
 -- **Dependencies**:
